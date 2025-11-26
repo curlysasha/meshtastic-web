@@ -91,7 +91,7 @@ export function Sidebar() {
                       {node.deviceMetrics.batteryLevel}%
                     </span>
                   )}
-                  {node.snr !== undefined && (
+                  {node.snr !== undefined && node.snr !== null && (
                     <span className="flex items-center">
                       <Signal className="w-3 h-3 mr-0.5" />
                       {node.snr.toFixed(1)}
