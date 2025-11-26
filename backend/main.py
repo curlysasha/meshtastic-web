@@ -173,6 +173,8 @@ async def traceroute(node_id: str, request: TracerouteRequest = TracerouteReques
     if not mesh_manager.connected:
         raise HTTPException(status_code=400, detail="Not connected")
 
+    logger.info(f"Traceroute request received for {node_id}")
+
     success = mesh_manager.send_traceroute(
         dest=node_id,
         hop_limit=request.hop_limit,
@@ -182,6 +184,7 @@ async def traceroute(node_id: str, request: TracerouteRequest = TracerouteReques
     if not success:
         raise HTTPException(status_code=500, detail="Failed to send traceroute")
 
+    logger.info(f"Traceroute request sent, waiting for response via WebSocket")
     return {"success": True, "message": "Traceroute initiated"}
 
 

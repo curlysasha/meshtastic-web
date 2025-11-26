@@ -6,16 +6,21 @@ import { useTraceroute } from '@/hooks/useApi'
 import { getNodeName } from '@/lib/utils'
 
 export function NodeInfoPanel() {
-  const { selectedNode, setSelectedNode, tracerouteResult, nodes } = useMeshStore()
+  const { selectedNode, setSelectedNode, tracerouteResult, setTracerouteResult, nodes } = useMeshStore()
   const traceroute = useTraceroute()
 
   if (!selectedNode) return null
 
   const handleTraceroute = () => {
     if (selectedNode.id) {
+      // Clear old traceroute result before sending new one
+      setTracerouteResult(null)
       traceroute.mutate(selectedNode.id)
     }
   }
+
+  // Check if traceroute result is for the currently selected node
+  const isTracerouteForThisNode = tracerouteResult && tracerouteResult.from === selectedNode.id
 
   const formatLastHeard = (timestamp?: number) => {
     if (!timestamp) return 'Unknown'
@@ -148,7 +153,7 @@ export function NodeInfoPanel() {
             Traceroute
           </Button>
 
-          {tracerouteResult && (
+          {isTracerouteForThisNode && (
             <div className="mt-3 p-3 bg-secondary/50 rounded-lg">
               <div className="text-xs text-muted-foreground uppercase mb-2">
                 Route to {selectedNode.id}

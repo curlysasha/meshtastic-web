@@ -145,14 +145,31 @@ class MeshtasticManager:
         request_id = decoded.get("requestId")
         traceroute_data = decoded.get("traceroute", {})
 
+        # Convert protobuf traceroute data to dict if needed
+        if hasattr(traceroute_data, 'DESCRIPTOR'):
+            traceroute_data = MessageToDict(traceroute_data)
+
+        # Extract route data
+        # According to protobuf: "route" contains intermediate hops (nodes visited on the way)
+        # Source and destination are NOT included in the route array
+        route = traceroute_data.get("route", [])
+        snr_towards = traceroute_data.get("snrTowards", [])
+        snr_back = traceroute_data.get("snrBack", [])
+
+        # Filter out invalid node IDs (0xFFFFFFFF = 4294967295 = unknown/encrypted nodes)
+        if isinstance(route, list):
+            route = [node for node in route if node != 4294967295 and node != 0]
+
+        logger.info(f"Traceroute response: from={packet.get('fromId')}, hops={len(route)}, route={route}, snr_towards={snr_towards}")
+
         ws_manager.broadcast_sync({
             "type": "traceroute",
             "data": {
                 "request_id": request_id,
                 "from": packet.get("fromId"),
-                "route": traceroute_data.get("route", []),
-                "snr_towards": traceroute_data.get("snrTowards", []),
-                "snr_back": traceroute_data.get("snrBack", [])
+                "route": route,
+                "snr_towards": snr_towards if isinstance(snr_towards, list) else [],
+                "snr_back": snr_back if isinstance(snr_back, list) else []
             }
         })
 
@@ -365,7 +382,14 @@ class MeshtasticManager:
         if not self.interface:
             return False
         try:
-            self.interface.sendTraceRoute(dest=dest, hopLimit=hop_limit, channelIndex=channel_index)
+            # Try with channelIndex first (supported in meshtastic 2.5.0+)
+            # Fall back to without channelIndex for older versions (2.3.4)
+            try:
+                self.interface.sendTraceRoute(dest=dest, hopLimit=hop_limit, channelIndex=channel_index)
+            except TypeError:
+                # channelIndex not supported in this version
+                logger.debug(f"channelIndex not supported, using default channel")
+                self.interface.sendTraceRoute(dest=dest, hopLimit=hop_limit)
             return True
         except Exception as e:
             logger.error(f"Traceroute error: {e}")
