@@ -54,12 +54,17 @@ export const useMeshStore = create<MeshState>((set, get) => ({
   updateNode: (node) =>
     set((state) => {
       const idx = state.nodes.findIndex((n) => n.id === node.id || n.num === node.num)
+      // Preserve existing position if update doesn't include coordinates
+      const incoming = { ...node }
+      if (incoming.position === undefined || incoming.position === null) {
+        delete incoming.position
+      }
       if (idx >= 0) {
         const newNodes = [...state.nodes]
-        newNodes[idx] = { ...newNodes[idx], ...node }
+        newNodes[idx] = { ...newNodes[idx], ...incoming }
         return { nodes: newNodes }
       }
-      return { nodes: [...state.nodes, node] }
+      return { nodes: [...state.nodes, incoming] }
     }),
 
   channels: [],
