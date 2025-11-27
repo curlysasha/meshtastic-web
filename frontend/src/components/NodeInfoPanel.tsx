@@ -123,12 +123,12 @@ export function NodeInfoPanel() {
 
       traceroute.mutate(selectedNode.id)
 
-      // Set timeout for 45 seconds
+      // Set timeout for 60 seconds
       timeoutRef.current = setTimeout(() => {
         if (!tracerouteResult || tracerouteResult.from !== selectedNode.id) {
           setTracerouteTimeout(true)
         }
-      }, 45000)
+      }, 60000)
     }
   }
 
@@ -358,7 +358,7 @@ export function NodeInfoPanel() {
             <div className="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
               <div className="flex items-center gap-2 text-sm text-destructive">
                 <AlertCircle className="w-4 h-4" />
-                <span>No response received (timeout after 45s)</span>
+                <span>No response received (timeout after 60s)</span>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Node may be offline or unreachable
