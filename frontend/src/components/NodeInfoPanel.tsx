@@ -115,17 +115,22 @@ type TraceMapSegment = {
   coords: [number, number][]
   direction: 'forward' | 'back'
   approximate?: boolean
+  distanceKm?: number
 }
 
 function TraceRouteMap({
   points,
   segments,
+  totalDistanceKm,
+  directionDistance,
   interactive = false,
   showAttribution = true,
   className,
 }: {
   points: TraceMapPoint[]
   segments: TraceMapSegment[]
+  totalDistanceKm?: number
+  directionDistance?: { forward?: number; back?: number }
   interactive?: boolean
   showAttribution?: boolean
   className?: string
@@ -414,6 +419,25 @@ export function NodeInfoPanel() {
     return { lat: latitude, lon: longitude }
   }
 
+  const formatKm = (value?: number) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
+    return value >= 1 ? `${value.toFixed(1)} км` : `${(value * 1000).toFixed(0)} м`
+  }
+
+  const haversineKm = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => {
+    const R = 6371
+    const toRad = (deg: number) => (deg * Math.PI) / 180
+    const dLat = toRad(b.lat - a.lat)
+    const dLon = toRad(b.lon - a.lon)
+    const lat1 = toRad(a.lat)
+    const lat2 = toRad(b.lat)
+    const h =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2
+    const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
+    return R * c
+  }
+
   const traceMapData = useMemo(() => {
     if (!isTracerouteForThisNode || !tracerouteResult) return null
 
@@ -476,6 +500,7 @@ export function NodeInfoPanel() {
 
       let lastKnown: { lat: number; lon: number } | null = null
       let gap = false
+      let distance = 0
 
       sequence.forEach((entry) => {
         hopIndex += 1
@@ -497,6 +522,8 @@ export function NodeInfoPanel() {
         }
         const coords = addPoint(entry.node, entry.role)
         if (coords && lastKnown) {
+          const segmentDistance = haversineKm(lastKnown, coords)
+          distance += segmentDistance
           segments.push({
             coords: [
               [lastKnown.lon, lastKnown.lat],
@@ -504,6 +531,7 @@ export function NodeInfoPanel() {
             ],
             direction,
             approximate: gap,
+            distanceKm: segmentDistance,
           })
         }
         if (coords) {
@@ -514,7 +542,7 @@ export function NodeInfoPanel() {
         }
       })
 
-      return { points, segments, unknown }
+      return { points, segments, unknown, distance }
     }
 
     const forward = buildPath(tracerouteResult.route, 'forward')
@@ -526,6 +554,11 @@ export function NodeInfoPanel() {
       pointsBack: back.points,
       segments: [...forward.segments, ...back.segments],
       unknown: forward.unknown + back.unknown,
+      distance: {
+        forward: forward.distance,
+        back: back.distance,
+        total: forward.distance + back.distance,
+      },
     }
   }, [
     isTracerouteForThisNode,
@@ -828,6 +861,8 @@ export function NodeInfoPanel() {
                       <TraceRouteMap
                         points={[...traceMapData.pointsForward, ...traceMapData.pointsBack]}
                         segments={traceMapData.segments}
+                        totalDistanceKm={traceMapData.distance.total}
+                        directionDistance={traceMapData.distance}
                         interactive={false}
                         showAttribution={false}
                         className="h-48"
@@ -838,6 +873,11 @@ export function NodeInfoPanel() {
                       Нет координат для отображения маршрута на карте, но список хопов ниже.
                     </div>
                   )}
+                  <div className="text-xs text-muted-foreground flex flex-wrap gap-4">
+                    <span>Вперёд: {formatKm(traceMapData.distance.forward)}</span>
+                    <span>Назад: {traceMapData.distance.back ? formatKm(traceMapData.distance.back) : '—'}</span>
+                    <span className="font-medium text-foreground">Суммарно: {formatKm(traceMapData.distance.total)}</span>
+                  </div>
                   <div className="text-xs text-muted-foreground space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="inline-flex items-center gap-1">
@@ -976,13 +1016,20 @@ export function NodeInfoPanel() {
                           </Button>
                         </Dialog.Close>
                       </div>
-                        <TraceRouteMap
-                          points={[...traceMapData.pointsForward, ...traceMapData.pointsBack]}
-                          segments={traceMapData.segments}
-                          interactive
-                          showAttribution
-                          className="h-[520px]"
-                        />
+                      <TraceRouteMap
+                        points={[...traceMapData.pointsForward, ...traceMapData.pointsBack]}
+                        segments={traceMapData.segments}
+                        totalDistanceKm={traceMapData.distance.total}
+                        directionDistance={traceMapData.distance}
+                        interactive
+                        showAttribution
+                        className="h-[520px]"
+                      />
+                      <div className="mt-3 text-xs text-muted-foreground flex flex-wrap gap-4">
+                        <span>Вперёд: {formatKm(traceMapData.distance.forward)}</span>
+                        <span>Назад: {traceMapData.distance.back ? formatKm(traceMapData.distance.back) : '—'}</span>
+                        <span className="font-medium text-foreground">Суммарно: {formatKm(traceMapData.distance.total)}</span>
+                      </div>
                       <div className="mt-3 text-xs text-muted-foreground space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="inline-flex items-center gap-1">
