@@ -9,7 +9,7 @@ import { useSendMessage, useMessages } from '@/hooks/useApi'
 
 export function ChatArea() {
   const [text, setText] = useState('')
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const scrollViewportRef = useRef<HTMLDivElement>(null)
   const currentChat = useMeshStore((s) => s.currentChat)
   const messages = useMeshStore((s) => s.messages)
   const status = useMeshStore((s) => s.status)
@@ -24,15 +24,17 @@ export function ChatArea() {
   )
 
   // Reset unread count when opening a chat
-  useEffect(() => {
-    if (!currentChat) return
-
-    const chatKey = currentChat.type === 'channel'
+  const chatKey = currentChat
+    ? currentChat.type === 'channel'
       ? `channel:${currentChat.index}`
       : `dm:${currentChat.nodeId}`
+    : ''
+
+  useEffect(() => {
+    if (!chatKey) return
 
     resetUnreadForChat(chatKey)
-  }, [currentChat, resetUnreadForChat])
+  }, [chatKey, resetUnreadForChat])
 
   // Filter messages for current chat
   const filteredMessages = messages.filter((m) => {
@@ -50,10 +52,13 @@ export function ChatArea() {
 
   // Auto-scroll to bottom
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [filteredMessages.length])
+    const viewport = scrollViewportRef.current
+    if (!viewport) return
+
+    requestAnimationFrame(() => {
+      viewport.scrollTop = viewport.scrollHeight
+    })
+  }, [filteredMessages.length, chatKey])
 
   const handleSend = () => {
     if (!text.trim() || !currentChat) return
@@ -114,7 +119,7 @@ export function ChatArea() {
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      <ScrollArea className="flex-1 p-4" viewportRef={scrollViewportRef}>
         {filteredMessages.length === 0 ? (
           <div className="text-center text-muted-foreground py-8">
             No messages yet. Start the conversation!
