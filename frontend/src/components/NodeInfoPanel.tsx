@@ -10,7 +10,7 @@ export function NodeInfoPanel() {
   const { selectedNode, setSelectedNode, tracerouteResult, setTracerouteResult, nodes, status } = useMeshStore()
   const traceroute = useTraceroute()
   const [tracerouteTimeout, setTracerouteTimeout] = useState(false)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   if (!selectedNode) return null
 

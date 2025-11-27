@@ -45,7 +45,7 @@ interface MeshState {
   getUnreadForChat: (chatKey: string) => number
 }
 
-export const useMeshStore = create<MeshState>((set) => ({
+export const useMeshStore = create<MeshState>((set, get) => ({
   status: { connected: false },
   setStatus: (status) => set({ status }),
 
@@ -104,8 +104,7 @@ export const useMeshStore = create<MeshState>((set) => ({
       const { [chatKey]: _, ...rest } = state.unreadPerChat
       return { unreadPerChat: rest }
     }),
-  getUnreadForChat: (chatKey) => {
-    const state = useMeshStore.getState()
-    return state.unreadPerChat[chatKey] || 0
+  getUnreadForChat: (chatKey: string): number => {
+    return get().unreadPerChat[chatKey] || 0
   },
 }))

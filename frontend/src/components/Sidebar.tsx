@@ -1,14 +1,25 @@
-import { Hash, User, Radio, Battery, Signal } from 'lucide-react'
+import { useState } from 'react'
+import { Hash, User, Radio, Battery, Signal, ArrowUpDown } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { ConnectionPanel } from './ConnectionPanel'
 import { useMeshStore } from '@/store'
 import { useNodes, useChannels } from '@/hooks/useApi'
 import { cn, getNodeName } from '@/lib/utils'
 
+type SortType = 'name' | 'lastHeard'
+
 export function Sidebar() {
   const { currentChat, setCurrentChat, setSelectedNode, status, getUnreadForChat } = useMeshStore()
   const { data: nodes } = useNodes()
   const { data: channels } = useChannels()
+  const [sortBy, setSortBy] = useState<SortType>('name')
 
   const formatLastHeard = (timestamp?: number) => {
     if (!timestamp) return ''
@@ -20,6 +31,20 @@ export function Sidebar() {
     if (diff < 86400) return `${Math.floor(diff / 3600)}h`
     return `${Math.floor(diff / 86400)}d`
   }
+
+  // Sort nodes
+  const sortedNodes = nodes ? [...nodes].sort((a, b) => {
+    if (sortBy === 'name') {
+      const nameA = getNodeName(a).toLowerCase()
+      const nameB = getNodeName(b).toLowerCase()
+      return nameA.localeCompare(nameB)
+    } else {
+      // Sort by lastHeard (newest first)
+      const timeA = a.lastHeard || 0
+      const timeB = b.lastHeard || 0
+      return timeB - timeA
+    }
+  }) : []
 
   return (
     <div className="w-72 bg-card border-r border-border flex flex-col h-full">
@@ -79,10 +104,36 @@ export function Sidebar() {
 
           {/* Nodes */}
           <div className="p-2">
-            <div className="text-xs font-semibold text-muted-foreground px-2 py-1 uppercase">
-              Nodes ({nodes?.length || 0})
+            <div className="flex items-center justify-between px-2 py-1">
+              <div className="text-xs font-semibold text-muted-foreground uppercase">
+                Nodes ({nodes?.length || 0})
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    title="Сортировка"
+                  >
+                    <ArrowUpDown className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setSortBy('name')}>
+                    <span className={cn(sortBy === 'name' && 'font-semibold')}>
+                      По имени
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy('lastHeard')}>
+                    <span className={cn(sortBy === 'lastHeard' && 'font-semibold')}>
+                      По активности
+                    </span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-            {nodes?.map((node) => {
+            {sortedNodes?.map((node) => {
               const chatKey = `dm:${node.id}`
               const unreadCount = getUnreadForChat(chatKey)
 
