@@ -38,12 +38,13 @@ export function ChatArea() {
   const filteredMessages = messages.filter((m) => {
     if (!currentChat) return false
     if (currentChat.type === 'channel') {
-      return m.channel === currentChat.index && !m.receiver
+      // Channel message: on this channel AND (no receiver OR receiver is broadcast)
+      return m.channel === currentChat.index && (!m.receiver || m.receiver === '^all' || m.receiver === 'broadcast')
     }
-    // DM
+    // DM: receiver is specific node (not broadcast) AND matches current chat
     return (
       (m.sender === currentChat.nodeId || m.receiver === currentChat.nodeId) &&
-      m.channel === 0
+      m.receiver && m.receiver !== '^all' && m.receiver !== 'broadcast'
     )
   })
 

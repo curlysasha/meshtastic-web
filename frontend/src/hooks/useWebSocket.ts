@@ -80,12 +80,15 @@ export function useWebSocket() {
             let chatKey: string
             let isCurrentChat = false
 
-            if (data.receiver && data.receiver !== 'broadcast') {
-              // Direct message
+            // Check if it's a DM: receiver is set AND NOT broadcast (^all or broadcast)
+            const isDM = data.receiver && data.receiver !== '^all' && data.receiver !== 'broadcast'
+
+            if (isDM) {
+              // Direct message - use sender as chat key
               chatKey = `dm:${data.sender}`
               isCurrentChat = currentChat?.type === 'dm' && currentChat.nodeId === data.sender
             } else {
-              // Channel message
+              // Channel/broadcast message - use channel index as chat key
               chatKey = `channel:${data.channel}`
               isCurrentChat = currentChat?.type === 'channel' && currentChat.index === data.channel
             }
