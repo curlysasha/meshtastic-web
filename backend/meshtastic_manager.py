@@ -50,27 +50,31 @@ class MeshtasticManager:
 
     def connect_serial(self, dev_path: str) -> bool:
         self.disconnect()
+        # Subscribe before opening interface to catch queued messages delivered immediately on connect
+        self._setup_callbacks()
         try:
             self.interface = meshtastic.serial_interface.SerialInterface(devPath=dev_path)
             self.connection_type = "serial"
             self.address = dev_path
-            self._setup_callbacks()
             return True
         except Exception as e:
             logger.error(f"Serial connection error: {e}")
+            self._unsubscribe_all()
             self.interface = None
             return False
 
     def connect_tcp(self, hostname: str, port: int = 4403) -> bool:
         self.disconnect()
+        # Subscribe before opening interface to catch queued messages delivered immediately on connect
+        self._setup_callbacks()
         try:
             self.interface = meshtastic.tcp_interface.TCPInterface(hostname=hostname, portNumber=port)
             self.connection_type = "tcp"
             self.address = f"{hostname}:{port}"
-            self._setup_callbacks()
             return True
         except Exception as e:
             logger.error(f"TCP connection error: {e}")
+            self._unsubscribe_all()
             self.interface = None
             return False
 
