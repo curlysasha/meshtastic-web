@@ -5,8 +5,26 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+function parseTimestamp(timestamp: string | number): Date {
+  if (typeof timestamp === 'number') {
+    return new Date(timestamp * 1000)
+  }
+
+  const trimmed = timestamp.trim()
+  const normalized = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T')
+  const hasTimezone = /([zZ]|[+-]\d\d:?\d\d)$/.test(normalized)
+  const isoString = hasTimezone ? normalized : `${normalized}Z`
+  const date = new Date(isoString)
+
+  if (Number.isNaN(date.getTime())) {
+    return new Date(timestamp)
+  }
+
+  return date
+}
+
 export function formatTime(timestamp: string | number): string {
-  const date = new Date(typeof timestamp === 'number' ? timestamp * 1000 : timestamp)
+  const date = parseTimestamp(timestamp)
   const now = new Date()
   const isToday = date.toDateString() === now.toDateString()
 
@@ -30,7 +48,7 @@ export function formatTime(timestamp: string | number): string {
 }
 
 export function formatDate(timestamp: string | number): string {
-  const date = new Date(typeof timestamp === 'number' ? timestamp * 1000 : timestamp)
+  const date = parseTimestamp(timestamp)
   return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
 }
 
