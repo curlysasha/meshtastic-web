@@ -2,10 +2,14 @@ import asyncio
 import logging
 import json
 import sys
+import os
+import webbrowser
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from schemas import ConnectRequest, MessageRequest, TracerouteRequest, ConnectionStatus
 from meshtastic_manager import mesh_manager
@@ -14,6 +18,16 @@ import database as db
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Определяем базовую директорию (для PyInstaller)
+if getattr(sys, 'frozen', False):
+    # Запущено как exe
+    BASE_DIR = Path(sys.executable).parent
+else:
+    # Запущено как скрипт
+    BASE_DIR = Path(__file__).parent
+
+STATIC_DIR = BASE_DIR / "static"
 
 
 @asynccontextmanager
@@ -228,6 +242,30 @@ async def get_messages(channel: int = None, dm_partner: str = None, limit: int =
     return messages
 
 
+# Монтируем статические файлы (React build)
+if STATIC_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+
+    @app.get("/")
+    async def serve_index():
+        return FileResponse(STATIC_DIR / "index.html")
+
+    @app.get("/{path:path}")
+    async def serve_spa(path: str):
+        # Для SPA: если файл существует - отдаём его, иначе index.html
+        file_path = STATIC_DIR / path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(STATIC_DIR / "index.html")
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    port = 8000
+
+    # В портативном режиме открываем браузер
+    if getattr(sys, 'frozen', False):
+        webbrowser.open(f"http://localhost:{port}")
+
+    uvicorn.run(app, host="0.0.0.0", port=port)

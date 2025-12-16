@@ -64,7 +64,7 @@ function MapView({
       center: [longitude, latitude],
       zoom,
       interactive,
-      attributionControl: showAttribution,
+      attributionControl: showAttribution ? undefined : false,
       maxZoom: 18,
     })
     if (interactive) {
@@ -121,8 +121,6 @@ type TraceMapSegment = {
 function TraceRouteMap({
   points,
   segments,
-  totalDistanceKm,
-  directionDistance,
   interactive = false,
   showAttribution = true,
   className,
@@ -162,7 +160,7 @@ function TraceRouteMap({
       })
     })
 
-    return { type: 'FeatureCollection', features }
+    return { type: 'FeatureCollection' as const, features }
   }, [points, segments])
 
   const bounds = useMemo(() => {
@@ -188,7 +186,7 @@ function TraceRouteMap({
       center: points.length ? [points[0].lon, points[0].lat] : [0, 0],
       zoom: 8,
       interactive,
-      attributionControl: showAttribution,
+      attributionControl: showAttribution ? undefined : false,
     })
     if (interactive) {
       map.addControl(new NavigationControl({ showCompass: false }), 'top-right')

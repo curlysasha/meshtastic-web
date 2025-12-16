@@ -1,9 +1,16 @@
 import aiosqlite
 import asyncio
+import sys
 from typing import Optional
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "meshtastic.db"
+# Определяем путь к базе данных (рядом с exe или рядом со скриптом)
+if getattr(sys, 'frozen', False):
+    # Запущено как exe — база рядом с exe
+    DB_PATH = Path(sys.executable).parent / "meshtastic.db"
+else:
+    # Запущено как скрипт
+    DB_PATH = Path(__file__).parent / "meshtastic.db"
 
 _db: Optional[aiosqlite.Connection] = None
 _lock = asyncio.Lock()

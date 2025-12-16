@@ -5,13 +5,13 @@ __pycache__/
 *.so
 .Python
 venv/
+.venv/
 ENV/
 .env
 *.db
 
 # Node
 node_modules/
-dist/
 .vite/
 
 # IDE
@@ -28,3 +28,13 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# PyInstaller build
+dist/
+build/
+*.spec.bak
+*.exe
+
+# Frontend build (копируется в backend/static)
+frontend/dist/
+backend/static/
