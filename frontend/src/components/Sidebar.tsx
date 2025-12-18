@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Hash, User, Radio, Battery, Signal, ArrowUpDown } from 'lucide-react'
+import { Hash, User, Radio, Battery, Signal, ArrowUpDown, Search, X } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +20,8 @@ export function Sidebar() {
   const { data: nodes } = useNodes()
   const { data: channels } = useChannels()
   const [sortBy, setSortBy] = useState<SortType>('name')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const formatLastHeard = (timestamp?: number) => {
     if (!timestamp) return ''
@@ -32,46 +34,36 @@ export function Sidebar() {
     return `${Math.floor(diff / 86400)}d`
   }
 
-  // Sort nodes
-  const sortedNodes = nodes ? [...nodes].sort((a, b) => {
-    if (sortBy === 'name') {
-      const nameA = getNodeName(a).toLowerCase()
-      const nameB = getNodeName(b).toLowerCase()
-      return nameA.localeCompare(nameB)
-    } else {
-      // Sort by lastHeard (newest first)
-      const timeA = a.lastHeard || 0
-      const timeB = b.lastHeard || 0
-      return timeB - timeA
-    }
-  }) : []
-
-  const getUnread = (nodeId: string) => getUnreadForChat(`dm:${nodeId}`)
-
-  const sortNodesByUnreadThenPreference = (list: typeof sortedNodes) => {
-    return [...list].sort((a, b) => {
-      const unreadA = getUnread(a.id)
-      const unreadB = getUnread(b.id)
-      if (unreadA !== unreadB) return unreadB - unreadA
-
+  // Filter and Sort nodes
+  const processedNodes = nodes ? [...nodes]
+    .filter(n => {
+      if (!searchQuery) return true
+      const query = searchQuery.toLowerCase()
+      const name = getNodeName(n).toLowerCase()
+      const shortName = n.user?.shortName?.toLowerCase() || ''
+      const id = n.id?.toLowerCase() || ''
+      return name.includes(query) || shortName.includes(query) || id.includes(query)
+    })
+    .sort((a, b) => {
       if (sortBy === 'name') {
         const nameA = getNodeName(a).toLowerCase()
         const nameB = getNodeName(b).toLowerCase()
         return nameA.localeCompare(nameB)
+      } else {
+        // Sort by lastHeard (newest first)
+        const timeA = a.lastHeard || 0
+        const timeB = b.lastHeard || 0
+        return timeB - timeA
       }
+    }) : []
 
-      const timeA = a.lastHeard || 0
-      const timeB = b.lastHeard || 0
-      return timeB - timeA
-    })
-  }
+  const getUnread = (nodeId: string) => getUnreadForChat(`dm:${nodeId}`)
 
-  const unreadNodes = sortNodesByUnreadThenPreference(
-    sortedNodes.filter((node) => getUnread(node.id) > 0)
-  )
-  const regularNodes = sortedNodes.filter((node) => getUnread(node.id) === 0)
+  // Split into unread and regular, respecting the filter
+  const unreadNodes = processedNodes.filter((node) => getUnread(node.id) > 0)
+  const regularNodes = processedNodes.filter((node) => getUnread(node.id) === 0)
 
-  const renderNodeButton = (node: (typeof sortedNodes)[number], unreadCount: number) => (
+  const renderNodeButton = (node: (typeof processedNodes)[number], unreadCount: number) => (
     <button
       key={node.id || node.num}
       onClick={() => {
@@ -92,17 +84,15 @@ export function Sidebar() {
           </span>
           {unreadCount > 0 && (
             <span className="bg-primary text-primary-foreground text-xs font-medium px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center flex-shrink-0">
-              {unreadCount > 99 ? '99+' : unreadCount}
+              {unreadCount}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="truncate">{node.id}</span>
-          {node.lastHeard && (
-            <span className="text-muted-foreground/60">
-              {formatLastHeard(node.lastHeard)}
-            </span>
-          )}
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span className="truncate mr-2 font-mono opacity-70">
+            {node.user?.id || node.num}
+          </span>
+          <span>{formatLastHeard(node.lastHeard)}</span>
         </div>
       </div>
       <div className="flex flex-col items-end gap-0.5 text-xs text-muted-foreground flex-shrink-0">
@@ -124,90 +114,114 @@ export function Sidebar() {
 
   return (
     <div className="w-[420px] bg-card border-r border-border flex flex-col h-full">
-      <div className="p-4 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Radio className="w-6 h-6 text-primary" />
-          <h1 className="font-bold text-lg">Meshtastic</h1>
+      {/* Header */}
+      <div className="h-14 px-4 border-b border-border flex items-center justify-between shrink-0">
+        <div className="font-semibold text-lg flex items-center gap-2">
+          <Hash className="w-5 h-5" />
+          Meshtastic
+        </div>
+        <div className="flex items-center gap-1">
+          <ConnectionPanel />
         </div>
       </div>
 
-      <ConnectionPanel />
-
-      {status.connected && (
+      {channels && channels.length > 0 ? (
         <ScrollArea className="flex-1">
           {/* Channels */}
           <div className="p-2">
-            <div className="text-xs font-semibold text-muted-foreground px-2 py-1 uppercase">
-              Channels
+            <div className="text-xs font-semibold text-muted-foreground uppercase px-2 py-1 mb-1">
+              Test Channels
             </div>
-            {channels?.map((channel) => {
-              const chatKey = `channel:${channel.index}`
-              const unreadCount = getUnreadForChat(chatKey)
-
-              return (
-                <button
-                  key={channel.index}
-                  onClick={() =>
-                    setActiveTab({
-                      type: 'channel',
-                      index: channel.index,
-                      name: channel.name,
-                    })
-                  }
-                  className={cn(
-                    'w-full flex items-center gap-2 px-2 py-2 rounded-md text-sm hover:bg-accent transition-colors',
-                    currentChat?.type === 'channel' &&
-                    currentChat.index === channel.index &&
-                    'bg-accent'
-                  )}
-                >
-                  <Hash className="w-4 h-4 text-muted-foreground" />
-                  <span className="truncate">{channel.name}</span>
-                  <div className="ml-auto flex items-center gap-1">
-                    {unreadCount > 0 && (
-                      <span className="bg-primary text-primary-foreground text-xs font-medium px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center">
-                        {unreadCount > 99 ? '99+' : unreadCount}
-                      </span>
-                    )}
-                    {channel.role === 'PRIMARY' && (
-                      <span className="text-xs text-primary">P</span>
-                    )}
-                  </div>
-                </button>
-              )
-            })}
+            {channels.map((channel) => (
+              <button
+                key={channel.index}
+                onClick={() => setActiveTab({
+                  type: 'channel',
+                  index: channel.index,
+                  name: channel.name,
+                })}
+                className={cn(
+                  'w-full flex items-center gap-2 px-2 py-2 rounded-md text-sm hover:bg-accent transition-colors',
+                  currentChat?.type === 'channel' &&
+                  currentChat.index === channel.index &&
+                  'bg-accent'
+                )}
+              >
+                <Hash className="w-4 h-4 text-muted-foreground" />
+                <span className="truncate font-medium">
+                  {channel.name || `Channel ${channel.index}`}
+                </span>
+              </button>
+            ))}
           </div>
+
+          <div className="h-px bg-border mx-2 my-1" />
 
           {/* Nodes */}
           <div className="p-2">
-            <div className="flex items-center justify-between px-2 py-1">
+            <div className="flex items-center justify-between px-2 py-1 mb-1">
               <div className="text-xs font-semibold text-muted-foreground uppercase">
                 Nodes ({nodes?.length || 0})
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+              <div className="flex items-center gap-1">
+                {isSearchOpen ? (
+                  <div className="flex items-center bg-muted rounded-md px-2 h-7 animate-in fade-in zoom-in duration-200">
+                    <Search className="w-3 h-3 text-muted-foreground mr-1.5" />
+                    <input
+                      autoFocus
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Поиск..."
+                      className="bg-transparent border-none text-xs focus:outline-none w-24 placeholder:text-muted-foreground/50"
+                    />
+                    <button
+                      onClick={() => {
+                        setSearchQuery('')
+                        setIsSearchOpen(false)
+                      }}
+                      className="ml-1 hover:text-foreground text-muted-foreground"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-6 w-6 p-0"
-                    title="Сортировка"
+                    title="Поиск"
+                    onClick={() => setIsSearchOpen(true)}
                   >
-                    <ArrowUpDown className="h-3.5 w-3.5" />
+                    <Search className="h-3.5 w-3.5" />
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setSortBy('name')}>
-                    <span className={cn(sortBy === 'name' && 'font-semibold')}>
-                      По имени
-                    </span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSortBy('lastHeard')}>
-                    <span className={cn(sortBy === 'lastHeard' && 'font-semibold')}>
-                      По активности
-                    </span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                )}
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      title="Сортировка"
+                    >
+                      <ArrowUpDown className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setSortBy('name')}>
+                      <span className={cn(sortBy === 'name' && 'font-semibold')}>
+                        По имени
+                      </span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy('lastHeard')}>
+                      <span className={cn(sortBy === 'lastHeard' && 'font-semibold')}>
+                        По активности
+                      </span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
 
             {unreadNodes.length > 0 && (
@@ -222,6 +236,10 @@ export function Sidebar() {
             {regularNodes.map((node) => renderNodeButton(node, getUnread(node.id)))}
           </div>
         </ScrollArea>
+      ) : (
+        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+          No connection
+        </div>
       )}
     </div>
   )
