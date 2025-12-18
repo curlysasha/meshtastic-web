@@ -116,6 +116,7 @@ export function useSendMessage() {
       text: string
       destination_id?: string
       channel_index?: number
+      reply_id?: number
     }) => {
       const res = await fetchApi<{ success: boolean; packet_id: number }>('/message', {
         method: 'POST',
@@ -132,6 +133,7 @@ export function useSendMessage() {
         timestamp: new Date().toISOString(),
         ack_status: 'pending',
         is_outgoing: true,
+        reply_id: data.reply_id,
       })
 
       return res

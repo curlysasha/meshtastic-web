@@ -24,7 +24,7 @@ export function useWebSocket() {
       audioRef.current = new Audio(NOTIFICATION_SOUND)
       audioRef.current.volume = 0.3
     }
-    audioRef.current.play().catch(() => {})
+    audioRef.current.play().catch(() => { })
   }
 
   const connect = () => {
@@ -58,6 +58,7 @@ export function useWebSocket() {
               timestamp?: number
               snr?: number
               hop_limit?: number
+              reply_id?: number
             }
 
             store.addMessage({
@@ -72,6 +73,7 @@ export function useWebSocket() {
                 : new Date().toISOString(),
               ack_status: 'received',
               is_outgoing: false,
+              reply_id: data.reply_id,
             })
 
             const currentChat = store.currentChat

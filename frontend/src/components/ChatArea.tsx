@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { Send, Hash, User } from 'lucide-react'
+import { Send, Hash, User, X, Reply } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -7,13 +7,17 @@ import { MessageBubble } from './MessageBubble'
 import { ChatTabs } from './ChatTabs'
 import { useMeshStore } from '@/store'
 import { useSendMessage, useMessages } from '@/hooks/useApi'
+import { cn } from '@/lib/utils'
+import type { Message } from '@/types'
 
 export function ChatArea() {
   const [text, setText] = useState('')
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null)
   const scrollViewportRef = useRef<HTMLDivElement>(null)
   const currentChat = useMeshStore((s) => s.currentChat)
   const messages = useMeshStore((s) => s.messages)
   const status = useMeshStore((s) => s.status)
+  const nodes = useMeshStore((s) => s.nodes)
   const resetUnreadForChat = useMeshStore((s) => s.resetUnreadForChat)
   const [isPageActive, setIsPageActive] = useState(() =>
     typeof document !== 'undefined'
@@ -125,7 +129,7 @@ export function ChatArea() {
     requestAnimationFrame(() => {
       viewport.scrollTop = viewport.scrollHeight
     })
-  }, [processedMessages.length, chatKey])
+  }, [processedMessages.length, chatKey, replyingTo])
 
   const handleSend = () => {
     if (!text.trim() || !currentChat) return
@@ -134,16 +138,25 @@ export function ChatArea() {
       text: text.trim(),
       destination_id: currentChat.type === 'dm' ? currentChat.nodeId : undefined,
       channel_index: currentChat.type === 'channel' ? currentChat.index : 0,
+      reply_id: replyingTo?.packet_id,
     })
 
     setText('')
+    setReplyingTo(null)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
+    } else if (e.key === 'Escape' && replyingTo) {
+      setReplyingTo(null)
     }
+  }
+
+  const getSenderName = (message: Message) => {
+    const node = nodes.find((n) => n.id === message.sender)
+    return node?.user?.longName || node?.user?.shortName || message.sender
   }
 
   if (!status.connected) {
@@ -202,25 +215,56 @@ export function ChatArea() {
           </div>
         ) : (
           processedMessages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
+            <MessageBubble
+              key={message.packet_id || message.id}
+              message={message}
+              onReply={() => setReplyingTo(message)}
+            />
           ))
         )}
       </ScrollArea>
 
+      {/* Reply Preview */}
+      {replyingTo && (
+        <div className="mx-4 mb-0 p-3 bg-muted/50 border border-border border-b-0 rounded-t-lg flex items-start gap-3 animate-in slide-in-from-bottom-2 duration-200">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-primary mb-1">
+              <Reply className="w-3 h-3" />
+              Replying to {getSenderName(replyingTo)}
+            </div>
+            <p className="text-xs text-muted-foreground truncate italic">
+              "{replyingTo.text}"
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 -mr-1"
+            onClick={() => setReplyingTo(null)}
+          >
+            <X className="w-3 h-3" />
+          </Button>
+        </div>
+      )}
+
       {/* Input */}
-      <div className="p-4 border-t border-border bg-card/50">
+      <div className={cn(
+        "p-4 border-t border-border bg-card/50 transition-colors",
+        replyingTo && "border-t-0 bg-muted/20"
+      )}>
         <div className="flex gap-2">
           <Input
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={`Message ${currentChat.name}...`}
-            className="flex-1"
+            className="flex-1 shadow-sm"
           />
           <Button
             onClick={handleSend}
             disabled={!text.trim() || sendMessage.isPending}
             size="icon"
+            className="shrink-0"
           >
             <Send className="w-4 h-4" />
           </Button>

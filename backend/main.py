@@ -176,7 +176,8 @@ async def send_message(request: MessageRequest):
     packet_id = mesh_manager.send_message(
         text=request.text,
         destination_id=request.destination_id,
-        channel_index=request.channel_index
+        channel_index=request.channel_index,
+        reply_id=request.reply_id
     )
 
     if packet_id is None:

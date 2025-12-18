@@ -45,9 +45,16 @@ async def init_db():
             text TEXT NOT NULL,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             ack_status TEXT DEFAULT 'pending',
-            is_outgoing INTEGER DEFAULT 0
+            is_outgoing INTEGER DEFAULT 0,
+            reply_id INTEGER
         )
     """)
+    # Add reply_id column if it doesn't exist (migration)
+    try:
+        await db.execute("ALTER TABLE messages ADD COLUMN reply_id INTEGER")
+    except:
+        pass
+
     await db.execute("""
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
@@ -63,6 +70,9 @@ async def init_db():
     await db.execute("""
         CREATE INDEX IF NOT EXISTS idx_messages_packet_id ON messages(packet_id)
     """)
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_messages_reply_id ON messages(reply_id)
+    """)
     await db.commit()
 
 
@@ -73,13 +83,14 @@ async def save_message(
     channel: int,
     text: str,
     is_outgoing: bool = False,
-    ack_status: str = "pending"
+    ack_status: str = "pending",
+    reply_id: Optional[int] = None
 ) -> int:
     db = await get_db()
     cursor = await db.execute(
-        """INSERT INTO messages (packet_id, sender, receiver, channel, text, is_outgoing, ack_status)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (packet_id, sender, receiver, channel, text, int(is_outgoing), ack_status)
+        """INSERT INTO messages (packet_id, sender, receiver, channel, text, is_outgoing, ack_status, reply_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (packet_id, sender, receiver, channel, text, int(is_outgoing), ack_status, reply_id)
     )
     await db.commit()
     return cursor.lastrowid

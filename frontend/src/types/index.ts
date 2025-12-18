@@ -40,6 +40,7 @@ export interface Message {
   ack_status: 'pending' | 'ack' | 'nak' | 'implicit_ack' | 'received' | 'failed'
   is_outgoing?: boolean
   reactions?: Record<string, string[]> // emoji -> [senderIds]
+  reply_id?: number
 }
 
 export interface ConnectionStatus {

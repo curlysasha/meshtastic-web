@@ -189,6 +189,13 @@ class MeshtasticManager:
         channel = packet.get("channel", 0)
         packet_id = packet.get("id")
 
+        # Robust reply_id extraction (can be in decoded or packet, as replyId or reply_id or replyTo)
+        reply_id = decoded.get("replyId") or decoded.get("reply_id") or decoded.get("replyTo")
+        if reply_id is None:
+            reply_id = packet.get("replyId") or packet.get("reply_id") or packet.get("replyTo")
+
+        logger.info(f"Received message: id={packet_id}, sender={sender}, text={text[:20]}..., reply_id={reply_id}")
+
         self._run_async(db.save_message(
             packet_id=packet_id,
             sender=sender,
@@ -196,7 +203,8 @@ class MeshtasticManager:
             channel=channel,
             text=text,
             is_outgoing=False,
-            ack_status="received"
+            ack_status="received",
+            reply_id=reply_id
         ))
 
         ws_manager.broadcast_sync({
@@ -209,7 +217,8 @@ class MeshtasticManager:
                 "text": text,
                 "timestamp": packet.get("rxTime"),
                 "snr": packet.get("rxSnr"),
-                "hop_limit": packet.get("hopLimit")
+                "hop_limit": packet.get("hopLimit"),
+                "reply_id": reply_id
             }
         })
 
@@ -358,7 +367,7 @@ class MeshtasticManager:
 
         return config
 
-    def send_message(self, text: str, destination_id: Optional[str] = None, channel_index: int = 0) -> Optional[int]:
+    def send_message(self, text: str, destination_id: Optional[str] = None, channel_index: int = 0, reply_id: Optional[int] = None) -> Optional[int]:
         if not self.interface:
             return None
 
@@ -367,7 +376,8 @@ class MeshtasticManager:
                 text=text,
                 destinationId=destination_id or "^all",
                 wantAck=True,
-                channelIndex=channel_index
+                channelIndex=channel_index,
+                replyId=reply_id
             )
             packet_id = result.id if result else None
 
@@ -378,7 +388,8 @@ class MeshtasticManager:
                 channel=channel_index,
                 text=text,
                 is_outgoing=True,
-                ack_status="pending"
+                ack_status="pending",
+                reply_id=reply_id
             ))
 
             return packet_id

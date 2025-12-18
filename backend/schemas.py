@@ -12,16 +12,19 @@ class MessageRequest(BaseModel):
     text: str
     destination_id: Optional[str] = None
     channel_index: int = 0
+    reply_id: Optional[int] = None
 
 
 class MessageResponse(BaseModel):
     id: int
+    packet_id: Optional[int]
     sender: str
     receiver: Optional[str]
     channel: int
     text: str
     timestamp: datetime
-    ack_status: Literal["pending", "ack", "nak", "implicit_ack", "failed"]
+    ack_status: Literal["pending", "ack", "nak", "implicit_ack", "received", "failed"]
+    reply_id: Optional[int]
 
 
 class NodeInfo(BaseModel):
