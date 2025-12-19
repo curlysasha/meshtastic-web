@@ -328,16 +328,19 @@ function GlobalNetworkMap({
   nodes,
   onSelectNode,
   className,
-  showAttribution = true
+  showAttribution = true,
+  showLabels = true
 }: {
   nodes: any[],
-  onSelectNode: (node) => void,
+  onSelectNode: (node: any) => void,
   className?: string,
-  showAttribution?: boolean
+  showAttribution?: boolean,
+  showLabels?: boolean
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const markersRef = useRef<Marker[]>([])
+  const isUserInteracting = useRef(false)
 
   const nodesWithCoords = useMemo(() => {
     return nodes.filter(n => n.position?.latitude && n.position?.longitude)
@@ -346,16 +349,22 @@ function GlobalNetworkMap({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
-    // Center map on the first node with coords or [0,0]
-    const center: [number, number] = nodesWithCoords.length > 0
-      ? [nodesWithCoords[0].position.longitude, nodesWithCoords[0].position.latitude]
-      : [0, 0]
+    // Calculate a proper initial center: bounding box center if possible
+    let center: [number, number] = [0, 0]
+    if (nodesWithCoords.length > 0) {
+      const lats = nodesWithCoords.map(n => n.position.latitude)
+      const lons = nodesWithCoords.map(n => n.position.longitude)
+      center = [
+        (Math.min(...lons) + Math.max(...lons)) / 2,
+        (Math.min(...lats) + Math.max(...lats)) / 2
+      ]
+    }
 
     mapRef.current = new MapLibreMap({
       container: containerRef.current,
       style: OSM_RASTER_STYLE as any,
       center,
-      zoom: 4,
+      zoom: 12, // Decent starting point
       interactive: true,
       attributionControl: showAttribution ? undefined : false,
     })
@@ -386,10 +395,12 @@ function GlobalNetworkMap({
       el.appendChild(dot)
 
       // Label
-      const label = document.createElement('div')
-      label.className = 'mt-1 px-2 py-1 bg-white/90 rounded-md border border-white/50 shadow-sm text-[13px] font-bold text-slate-900 group-hover:bg-primary group-hover:text-white transition-colors whitespace-nowrap'
-      label.textContent = node.user?.shortName || node.user?.longName || node.id
-      el.appendChild(label)
+      if (showLabels) {
+        const label = document.createElement('div')
+        label.className = 'mt-1 px-2 py-1 bg-white/90 rounded-md border border-white/50 shadow-sm text-[13px] font-bold text-slate-900 group-hover:bg-primary group-hover:text-white transition-colors whitespace-nowrap'
+        label.textContent = node.user?.shortName || node.user?.longName || node.id
+        el.appendChild(label)
+      }
 
       el.onclick = () => onSelectNode(node)
 
@@ -400,14 +411,22 @@ function GlobalNetworkMap({
       markersRef.current.push(marker)
     })
 
-    // Fit bounds if we have multiple points
-    if (nodesWithCoords.length > 1) {
-      const lats = nodesWithCoords.map(n => n.position.latitude)
-      const lons = nodesWithCoords.map(n => n.position.longitude)
-      map.fitBounds([
-        [Math.min(...lons), Math.min(...lats)],
-        [Math.max(...lons), Math.max(...lats)]
-      ], { padding: 40, duration: 300 })
+    // Fit bounds if we have nodes - ONLY if user hasn't taken control
+    if (nodesWithCoords.length > 0 && !isUserInteracting.current) {
+      if (nodesWithCoords.length > 1) {
+        const lats = nodesWithCoords.map(n => n.position.latitude)
+        const lons = nodesWithCoords.map(n => n.position.longitude)
+        map.fitBounds([
+          [Math.min(...lons), Math.min(...lats)],
+          [Math.max(...lons), Math.max(...lats)]
+        ], {
+          padding: 50,
+          duration: 500
+        })
+      } else {
+        map.setCenter([nodesWithCoords[0].position.longitude, nodesWithCoords[0].position.latitude])
+        map.setZoom(13)
+      }
     }
   }, [nodesWithCoords, onSelectNode])
 
@@ -796,6 +815,7 @@ export function NodeInfoPanel() {
                 }}
                 className="h-[200px]"
                 showAttribution={false}
+                showLabels={false}
               />
             </div>
             <Button
