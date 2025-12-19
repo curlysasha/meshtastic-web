@@ -97,42 +97,48 @@ export function ChatArea() {
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     )
 
-    sorted.forEach((msg, idx) => {
+    // First pass: extract reactions and build the base message list
+    sorted.forEach((msg) => {
       const isEmoji = EMOJI_ONLY_REGEX.test(msg.text.trim())
-      const prevMsg = idx > 0 ? sorted[idx - 1] : null
-      const nextMsg = idx < sorted.length - 1 ? sorted[idx + 1] : null
+
+      // In Meshtastic, a reaction is an emoji-only message that REPLIES to another message
+      if (isEmoji && msg.reply_id) {
+        // Find the target message by packet_id (replies reference packet_id)
+        const target = result.find(m => m.packet_id === msg.reply_id || m.id === msg.reply_id)
+        if (target) {
+          if (!target.reactions) target.reactions = {}
+          const emoji = msg.text.trim()
+          if (!target.reactions[emoji]) target.reactions[emoji] = []
+          if (!target.reactions[emoji].includes(msg.sender)) {
+            target.reactions[emoji].push(msg.sender)
+          }
+          return // Found target, skip adding as standalone message
+        }
+      }
+
+      // If not a reaction (or target not found), add as regular message
+      result.push({
+        ...msg,
+        reactions: { ...msg.reactions } // Keep existing reactions if any
+      })
+    })
+
+    // Second pass: calculate dividers and grouping for the resulting messages
+    result.forEach((msg, idx) => {
+      const prevMsg = idx > 0 ? result[idx - 1] : null
+      const nextMsg = idx < result.length - 1 ? result[idx + 1] : null
 
       // Date Divider logic
-      const showDateDivider = !prevMsg || !isSameDay(new Date(msg.timestamp), new Date(prevMsg.timestamp))
+      msg.showDateDivider = !prevMsg || !isSameDay(new Date(msg.timestamp), new Date(prevMsg.timestamp))
 
       // Grouping logic (same sender, within 5 minutes)
-      const isSameSenderAsPrev = prevMsg && prevMsg.sender === msg.sender && !EMOJI_ONLY_REGEX.test(prevMsg.text.trim())
+      const isSameSenderAsPrev = prevMsg && prevMsg.sender === msg.sender
       const timeDiffPrev = prevMsg ? Math.abs(new Date(msg.timestamp).getTime() - new Date(prevMsg.timestamp).getTime()) : Infinity
-      const isGroupStart = showDateDivider || !isSameSenderAsPrev || timeDiffPrev > 5 * 60 * 1000
+      msg.isGroupStart = msg.showDateDivider || !isSameSenderAsPrev || timeDiffPrev > 5 * 60 * 1000
 
-      const isSameSenderAsNext = nextMsg && nextMsg.sender === msg.sender && !EMOJI_ONLY_REGEX.test(nextMsg.text.trim())
+      const isSameSenderAsNext = nextMsg && nextMsg.sender === msg.sender
       const timeDiffNext = nextMsg ? Math.abs(new Date(nextMsg.timestamp).getTime() - new Date(msg.timestamp).getTime()) : Infinity
-      const isGroupEnd = !isSameSenderAsNext || timeDiffNext > 5 * 60 * 1000
-
-      if (isEmoji && result.length > 0) {
-        // It's a reaction to the previous message
-        const target = result[result.length - 1]
-        if (!target.reactions) target.reactions = {}
-        const emoji = msg.text.trim()
-        if (!target.reactions[emoji]) target.reactions[emoji] = []
-        if (!target.reactions[emoji].includes(msg.sender)) {
-          target.reactions[emoji].push(msg.sender)
-        }
-      } else {
-        // Regular message
-        result.push({
-          ...msg,
-          reactions: {},
-          showDateDivider,
-          isGroupStart,
-          isGroupEnd
-        })
-      }
+      msg.isGroupEnd = !isSameSenderAsNext || timeDiffNext > 5 * 60 * 1000
     })
 
     return result
