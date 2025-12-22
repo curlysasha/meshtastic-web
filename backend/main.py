@@ -20,11 +20,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Определяем базовую директорию и путь к статике
-if getattr(sys, 'frozen', False):
+if getattr(sys, "frozen", False):
     # Запущено как exe
     # sys._MEIPASS - это временная папка, куда PyInstaller распаковывает ресурсы
-    BUNDLE_DIR = Path(getattr(sys, '_MEIPASS', sys.executable))
-    
+    BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", sys.executable))
+
     # Сначала проверяем внешнюю папку static (рядом с exe)
     # Это позволяет пользователю «подменить» интерфейс без пересборки
     EXTERNAL_STATIC = Path(sys.executable).parent / "static"
@@ -88,10 +88,9 @@ app.add_middleware(
 async def websocket_endpoint(websocket: WebSocket):
     await ws_manager.connect(websocket)
     try:
-        await websocket.send_json({
-            "type": "connection_status",
-            "data": mesh_manager.get_status()
-        })
+        await websocket.send_json(
+            {"type": "connection_status", "data": mesh_manager.get_status()}
+        )
 
         while True:
             try:
@@ -141,7 +140,7 @@ async def get_status():
         connection_type=status.get("connection_type"),
         address=status.get("address"),
         my_node_id=status.get("my_node_id"),
-        my_node_num=status.get("my_node_num")
+        my_node_num=status.get("my_node_num"),
     )
 
 
@@ -185,7 +184,7 @@ async def send_message(request: MessageRequest):
         text=request.text,
         destination_id=request.destination_id,
         channel_index=request.channel_index,
-        reply_id=request.reply_id
+        reply_id=request.reply_id,
     )
 
     if packet_id is None:
@@ -217,10 +216,7 @@ async def traceroute(node_id: str, request: TracerouteRequest = TracerouteReques
 async def get_messages(channel: int = None, dm_partner: str = None, limit: int = 100):
     my_node_id = mesh_manager.my_node_id
     messages = await db.get_messages(
-        channel=channel,
-        dm_partner=dm_partner,
-        my_node_id=my_node_id,
-        limit=limit
+        channel=channel, dm_partner=dm_partner, my_node_id=my_node_id, limit=limit
     )
     return messages
 
@@ -248,7 +244,7 @@ if __name__ == "__main__":
     port = 8000
 
     # В портативном режиме открываем браузер
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         webbrowser.open(f"http://localhost:{port}")
 
     uvicorn.run(app, host="0.0.0.0", port=port)

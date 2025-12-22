@@ -1,0 +1,19 @@
+services:
+  meshradar:
+    build: .
+    container_name: meshradar
+    ports:
+      - "5173:80"  
+    volumes:
+      - meshradar_data:/app/backend/data  
+    devices:  
+      - ${MESHTASTIC_DEVICE}:*:/dev/ttyUSB1
+    privileged: true  
+    environment:
+      # - LOG_LEVEL=INFO, пока не добавлено в код
+      - DATABASE_PATH=${DATABASE_PATH}
+    restart: unless-stopped
+
+
+volumes:
+  meshradar_data:
