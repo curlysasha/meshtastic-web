@@ -87,7 +87,7 @@ export function useConnect() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: { type: 'serial' | 'tcp'; address: string }) => {
+    mutationFn: async (data: { type: 'serial' | 'tcp' | 'ble'; address: string }) => {
       return fetchApi<{ success: boolean }>('/connect', {
         method: 'POST',
         body: JSON.stringify(data),
