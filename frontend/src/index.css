@@ -39,6 +39,25 @@
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.3% 48%;
   }
+
+  /* HAM Radio / Retro Terminal Theme */
+  .retro {
+    --background: 120 10% 5%;
+    --foreground: 120 100% 65%;
+    --card: 120 15% 8%;
+    --card-foreground: 120 100% 65%;
+    --primary: 120 100% 45%;
+    --primary-foreground: 120 10% 5%;
+    --secondary: 120 20% 12%;
+    --secondary-foreground: 120 100% 65%;
+    --muted: 120 15% 15%;
+    --muted-foreground: 120 50% 45%;
+    --accent: 30 100% 50%;
+    --accent-foreground: 120 10% 5%;
+    --border: 120 30% 20%;
+    --input: 120 20% 12%;
+    --ring: 120 100% 45%;
+  }
 }
 
 @layer base {
@@ -49,7 +68,184 @@
     @apply bg-background text-foreground;
     font-family: system-ui, -apple-system, sans-serif;
   }
+
+  /* Retro theme glow effects */
+  .retro {
+    font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+  }
+
+  .retro * {
+    text-shadow: 0 0 8px hsl(120 100% 45% / 0.5);
+  }
+
+  .retro button:hover,
+  .retro a:hover {
+    text-shadow: 0 0 12px hsl(120 100% 55% / 0.8);
+  }
+
+  .retro input,
+  .retro textarea {
+    text-shadow: none;
+  }
+
+  .retro .bg-primary {
+    box-shadow: 0 0 10px hsl(120 100% 45% / 0.4);
+  }
 }
+
+/* ========================================
+   HAM RADIO / RETRO CRT EFFECTS
+   ======================================== */
+
+/* Scanlines overlay */
+.retro::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15) 0px,
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+}
+
+/* CRT screen curvature & vignette */
+.retro::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 9997;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 0%,
+    transparent 60%,
+    rgba(0, 0, 0, 0.4) 100%
+  );
+}
+
+/* CRT flicker animation - disabled for interface */
+
+/* Glowing borders for cards */
+.retro [class*="border"] {
+  border-color: hsl(120 60% 25%) !important;
+  box-shadow: inset 0 0 5px hsl(120 100% 30% / 0.2);
+}
+
+/* Retro scrollbar */
+.retro ::-webkit-scrollbar {
+  width: 12px;
+  background: hsl(120 10% 8%);
+}
+
+.retro ::-webkit-scrollbar-track {
+  background: hsl(120 10% 8%);
+  border-left: 1px solid hsl(120 50% 20%);
+}
+
+.retro ::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    hsl(120 80% 35%) 0%,
+    hsl(120 80% 25%) 50%,
+    hsl(120 80% 35%) 100%
+  );
+  border: 1px solid hsl(120 100% 40%);
+  border-radius: 0;
+}
+
+.retro ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    hsl(120 100% 45%) 0%,
+    hsl(120 100% 35%) 50%,
+    hsl(120 100% 45%) 100%
+  );
+  box-shadow: 0 0 8px hsl(120 100% 50% / 0.6);
+}
+
+/* Blinking cursor effect for inputs */
+.retro input:focus,
+.retro textarea:focus {
+  caret-color: hsl(120 100% 50%);
+  animation: blink-caret 1s step-end infinite;
+}
+
+@keyframes blink-caret {
+  50% { caret-color: transparent; }
+}
+
+/* LED indicator dots */
+.retro button {
+  position: relative;
+}
+
+.retro button::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 4px;
+  height: 4px;
+  background: hsl(120 100% 40%);
+  border-radius: 50%;
+  box-shadow: 0 0 4px hsl(120 100% 50%);
+  opacity: 0.8;
+}
+
+.retro button:hover::before {
+  background: hsl(30 100% 50%);
+  box-shadow: 0 0 6px hsl(30 100% 60%);
+  animation: led-blink 0.5s infinite;
+}
+
+@keyframes led-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Noise texture overlay */
+.retro {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+}
+
+/* Power-on animation */
+@keyframes power-on {
+  0% {
+    filter: brightness(0) saturate(0);
+    transform: scale(1, 0.01);
+  }
+  20% {
+    filter: brightness(0.5) saturate(0.5);
+    transform: scale(1, 0.01);
+  }
+  40% {
+    filter: brightness(1) saturate(1);
+    transform: scale(1, 0.5);
+  }
+  100% {
+    filter: brightness(1) saturate(1);
+    transform: scale(1, 1);
+  }
+}
+
+/* Status indicator bar */
+.retro [class*="bg-card"]:first-of-type {
+  border-top: 2px solid hsl(120 100% 40%);
+  box-shadow: 0 -2px 10px hsl(120 100% 40% / 0.3);
+}
+
+/* RF interference effects disabled - kept only static effects like scanlines and vignette */
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
