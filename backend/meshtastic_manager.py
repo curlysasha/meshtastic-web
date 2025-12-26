@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from typing import Optional, Dict, Any, Set, List
 from concurrent.futures import Future
 from pubsub import pub
@@ -22,6 +23,10 @@ class MeshtasticManager:
         self.address: Optional[str] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._pending_tasks: Set[Future] = set()
+        self._ble_devices_cache: Dict[str, Any] = {}  # Cache BLEDevice objects from scan
+        self._connect_error: Optional[str] = None
+        self._connect_event: Optional[asyncio.Event] = None
+        self._connect_thread: Optional["threading.Thread"] = None
 
     def set_loop(self, loop: asyncio.AbstractEventLoop):
         self._loop = loop
@@ -87,10 +92,17 @@ class MeshtasticManager:
         """
         try:
             logger.info("Scanning for BLE devices (takes 10 seconds)...")
+            # Use standard meshtastic scan - finds both advertising and paired devices
             devices = meshtastic.ble_interface.BLEInterface.scan()
+
+            # Clear old cache and store fresh BLEDevice objects
+            self._ble_devices_cache.clear()
 
             results = []
             for device in devices:
+                # Cache the BLEDevice object for later use
+                self._ble_devices_cache[device.address] = device
+
                 results.append({
                     "name": device.name or f"Unknown ({device.address})",
                     "address": device.address
@@ -105,26 +117,146 @@ class MeshtasticManager:
     def connect_ble(self, address: str) -> bool:
         """Connect to a Meshtastic device via BLE.
 
+        Note: BLE library always does a 10-second scan before connecting,
+        even when address is known (recommended by Bleak docs).
+        This is run in a separate thread to avoid blocking.
+
         Args:
             address: BLE device address (MAC address like F4:12:FA:D0:45:AB)
 
         Returns:
-            True if connection successful, False otherwise
+            True if connection initiated (actual connection happens async)
         """
         self.disconnect()
         # Subscribe before opening interface to catch queued messages delivered immediately on connect
         self._setup_callbacks()
+        self._connect_error = None
+        # Event is used to signal wait_for_connection from the connect thread
         try:
-            self.interface = meshtastic.ble_interface.BLEInterface(address=address)
-            self.connection_type = "ble"
-            self.address = address
-            logger.info(f"Connected via BLE: {address}")
-            return True
-        except Exception as e:
-            logger.error(f"BLE connection error: {e}")
-            self._unsubscribe_all()
-            self.interface = None
-            return False
+            if self._loop:
+                self._connect_event = asyncio.Event()
+        except Exception:
+            self._connect_event = None
+
+        # Notify that connection is starting
+        ws_manager.broadcast_sync({
+            "type": "connection_status",
+            "data": {"connected": False, "connecting": True, "message": "BLE connecting (scanning...)"}
+        })
+
+        def _connect_thread():
+            try:
+                # Check if we have a cached BLEDevice from recent scan
+                cached_device = self._ble_devices_cache.get(address)
+
+                if cached_device:
+                    logger.info(f"BLE connecting to {address} using cached device...")
+
+                    # Simple monkey-patch to avoid re-scanning
+                    original_find_device = meshtastic.ble_interface.BLEInterface.find_device
+                    # Preserve the original signature to avoid TypeError when the library
+                    # passes extra kwargs like timeout/exit_on_error
+                    def _use_cached_device(self, addr=None, *args, **kwargs):
+                        return cached_device
+
+                    meshtastic.ble_interface.BLEInterface.find_device = _use_cached_device
+
+                    try:
+                        import sys
+                        self.interface = meshtastic.ble_interface.BLEInterface(
+                            address=address,
+                            noNodes=True,  # Skip NodeDB download for faster connection
+                            timeout=120,
+                            debugOut=sys.stderr
+                        )
+                        logger.info("BLE connected successfully")
+                    finally:
+                        meshtastic.ble_interface.BLEInterface.find_device = original_find_device
+                else:
+                    logger.info(f"BLE connecting to {address} (includes 10s scan)...")
+                    import sys
+                    self.interface = meshtastic.ble_interface.BLEInterface(
+                        address=address,
+                        noNodes=True,  # Skip NodeDB download
+                        timeout=120,
+                        debugOut=sys.stderr
+                    )
+                    logger.info("BLE connected successfully")
+
+                # Follow library docs: wait for full connection, then config
+                try:
+                    wait_for_connected = getattr(self.interface, "waitForConnected", None)
+                    if callable(wait_for_connected):
+                        wait_for_connected(timeout=60)
+                except Exception as conn_err:
+                    raise RuntimeError(f"BLE waitForConnected failed: {conn_err}") from conn_err
+
+                try:
+                    wait_for_config = getattr(self.interface, "waitForConfig", None)
+                    if callable(wait_for_config):
+                        wait_for_config(timeout=30)
+                except Exception as config_err:
+                    logger.debug(f"BLE waitForConfig failed/ignored: {config_err}")
+
+                self.connection_type = "ble"
+                self.address = address
+                logger.info(f"Connected via BLE: {address}")
+
+                # Proactively notify clients in case the library event does not fire
+                ws_manager.broadcast_sync({
+                    "type": "connection_status",
+                    "data": {"connected": True, "type": self.connection_type, "address": self.address}
+                })
+                if self._connect_event and self._loop:
+                    self._loop.call_soon_threadsafe(self._connect_event.set)
+                # Successful connection notification will be sent by _on_connection callback
+            except BaseException as e:
+                self._connect_error = str(e)
+                logger.error(f"BLE connection error: {e}")
+                self._unsubscribe_all()
+                self.interface = None
+                # Notify about failed connection
+                ws_manager.broadcast_sync({
+                    "type": "connection_status",
+                    "data": {"connected": False, "connecting": False, "error": str(e)}
+                })
+                if self._connect_event and self._loop:
+                    self._loop.call_soon_threadsafe(self._connect_event.set)
+
+        # Start connection in separate thread to avoid blocking FastAPI
+        import threading
+        self._connect_thread = threading.Thread(target=_connect_thread, daemon=True, name="meshtastic-ble-connect")
+        self._connect_thread.start()
+
+        # Return True immediately - connection happens in background
+        return True
+
+    async def wait_for_connection(self, timeout: float = 60.0) -> bool:
+        """Await until interface is ready or timeout expires."""
+        # Prefer event signaling from the connect thread
+        if self._connect_event:
+            try:
+                await asyncio.wait_for(self._connect_event.wait(), timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.warning("BLE wait_for_connection timed out waiting for connect thread")
+                return False
+            if self._connect_error:
+                return False
+            return self.connected
+
+        # Fallback polling if event not available
+        end_time = time.monotonic() + timeout
+        while time.monotonic() < end_time:
+            if self.connected:
+                return True
+            if self._connect_error:
+                return False
+            await asyncio.sleep(0.25)
+        logger.warning("BLE wait_for_connection timeout (polling)")
+        return False
+
+    def get_connect_error(self) -> Optional[str]:
+        return self._connect_error
 
     def disconnect(self):
         if self.interface:

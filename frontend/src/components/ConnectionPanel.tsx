@@ -114,7 +114,7 @@ export function ConnectionPanel() {
                 {bleScanning ? t('common.scanning') : 'Scan BLE Devices'}
               </Button>
 
-              {bleDevices.length > 0 && (
+              {bleDevices.length > 0 ? (
                 <select
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
@@ -127,6 +127,10 @@ export function ConnectionPanel() {
                     </option>
                   ))}
                 </select>
+              ) : (
+                <p className="text-xs text-muted-foreground mb-3">
+                  Click "Scan BLE Devices" to find available devices
+                </p>
               )}
             </>
           ) : (

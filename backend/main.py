@@ -19,6 +19,9 @@ import database as db
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Enable DEBUG logging for meshtastic library to see BLE connection details
+logging.getLogger("meshtastic").setLevel(logging.DEBUG)
+
 # Определяем базовую директорию и путь к статике
 if getattr(sys, "frozen", False):
     # Запущено как exe
@@ -106,6 +109,7 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.post("/api/connect")
 async def connect(request: ConnectRequest):
     success = False
+    error_detail = "Connection failed"
 
     if request.type == "serial":
         success = mesh_manager.connect_serial(request.address)
@@ -119,13 +123,21 @@ async def connect(request: ConnectRequest):
         success = mesh_manager.connect_tcp(host, port)
     elif request.type == "ble":
         success = mesh_manager.connect_ble(request.address)
+        if success:
+            connected = await mesh_manager.wait_for_connection(timeout=120)
+            if connected:
+                success = True
+            else:
+                success = False
+                mesh_manager.disconnect()
+                error_detail = mesh_manager.get_connect_error() or "BLE connection timeout"
 
     if success:
         await db.save_setting("last_connection_type", request.type)
         await db.save_setting("last_address", request.address)
         return {"success": True, "status": mesh_manager.get_status()}
 
-    raise HTTPException(status_code=400, detail="Connection failed")
+    raise HTTPException(status_code=400, detail=error_detail)
 
 
 @app.post("/api/disconnect")
