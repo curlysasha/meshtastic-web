@@ -10,6 +10,10 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Quer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+try:
+    from serial.tools import list_ports
+except Exception:
+    list_ports = None
 
 from schemas import ConnectRequest, MessageRequest, TracerouteRequest, ConnectionStatus
 from meshtastic_manager import mesh_manager
@@ -18,9 +22,6 @@ import database as db
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Enable DEBUG logging for meshtastic library to see BLE connection details
-logging.getLogger("meshtastic").setLevel(logging.DEBUG)
 
 # Определяем базовую директорию и путь к статике
 if getattr(sys, "frozen", False):
@@ -151,6 +152,23 @@ async def scan_ble_devices():
     """Scan for available BLE Meshtastic devices."""
     devices = mesh_manager.scan_ble_devices()
     return {"devices": devices}
+
+
+@app.get("/api/serial-ports")
+async def list_serial_ports():
+    """Enumerate available serial ports for USB connection."""
+    if not list_ports:
+        raise HTTPException(status_code=500, detail="pyserial not available")
+
+    ports = []
+    for port in list_ports.comports():
+        ports.append({
+            "device": port.device,
+            "description": port.description,
+            "hwid": port.hwid,
+        })
+
+    return {"ports": ports}
 
 
 @app.get("/api/status", response_model=ConnectionStatus)
